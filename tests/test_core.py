@@ -44,3 +44,25 @@ def test_failed_install_shows_error():
         assert "definitely_not_a_real_mod_xyz" in imp.failed
     finally:
         imp.unregister()
+
+
+def test_extension_loaded_in_same_cell_as_failing_import(tmp_path, monkeypatch):
+    from auto_import import core
+    ip = InteractiveShell.instance()
+    core.unload_ipython_extension(ip)
+    calls = []
+
+    def fake_install(self, pkg):
+        calls.append(pkg)
+        (tmp_path / "fake_same_cell_mod.py").write_text("VALUE = 7\n")
+        monkeypatch.syspath_prepend(str(tmp_path))
+        return True
+
+    monkeypatch.setattr(core.AutoImporter, "install", fake_install)
+    try:
+        ip.run_cell("%load_ext auto_import\nimport fake_same_cell_mod\nresult = fake_same_cell_mod.VALUE", store_history=True)
+        assert calls == ["fake_same_cell_mod"]
+        assert ip.user_ns["result"] == 7
+    finally:
+        core.unload_ipython_extension(ip)
+        sys.modules.pop("fake_same_cell_mod", None)

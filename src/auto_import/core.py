@@ -66,6 +66,14 @@ class AutoImporter:
             self._cell = info.raw_cell
             self._installs = 0
 
+    def _current_cell(self):
+        # If the extension was loaded inside the failing cell, pre_run_cell
+        # never fired for it; the cell is the latest entry in history instead.
+        if self._cell is not None:
+            return self._cell
+        hist = self.ip.history_manager.input_hist_raw
+        return hist[-1] if hist else None
+
     # -- installing ------------------------------------------------------
     def install(self, package: str) -> bool:
         if shutil.which("uv") and not _has_pip():
@@ -88,7 +96,7 @@ class AutoImporter:
         can_retry = (
             package
             and package not in self.failed
-            and self._cell is not None
+            and self._current_cell() is not None
             and self._depth < self.max_installs
             and self._installs < self.max_installs
         )
@@ -103,7 +111,7 @@ class AutoImporter:
         self._depth += 1
         try:
             self._log("[auto_import] re-running cell")
-            shell.run_cell(self._cell, store_history=False)
+            shell.run_cell(self._current_cell(), store_history=False)
         finally:
             self._depth -= 1
         return None
